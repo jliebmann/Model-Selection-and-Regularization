@@ -1,3 +1,3 @@
 # Model-Selection-and-Regularization
 
-Compare LASSO and exhaustive search models on simulation + using regularization on state crime data
+Compare LASSO and exhaustive search models on simulation + Regularization on state crime data
