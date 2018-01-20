@@ -1,0 +1,667 @@
+---
+title: "Modern Data Mining - HW 2"
+author:
+- Saurav Bose
+- Jason Liebmann
+- Nicole Berkman
+output:
+  html_document:
+    code_folding: show
+    highlight: haddock
+    theme: cerulean
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.height=5, fig.width=8, warning = F)
+# constants for homework assignments
+hw_num <- 2
+hw_due_date <- "10 October, 2017"
+```
+
+
+```{r library, include=FALSE}
+# add your library imports here:
+library(dplyr)
+library(leaps)
+library(glmnet)
+library(pacman)
+library(tidyverse)
+```
+
+## Problem 0
+
+Review the code and concepts covered during lecture: model selection and penalized regression through elastic net. 
+
+## Problem 1: Model Selection
+Do ISLR, page 262, problem 8, and write up the answer here. This question is designed to help understanding of model selection through simulations. 
+   
+   **(a)**
+```{r}
+#Set seed for our data
+set.seed(40)
+#Generate our predictor, X, of length n = 100
+X <- rnorm(100)
+#Generate error term, epsi, of the same length, n = 100
+espi <- rnorm(100)
+```
+   **(b)**
+```{r}
+#Choose Betas for our response vector Y
+B0 <- 1
+B1 <- 1
+B2 <- 1
+B3 <- 1
+#Generate response vector Y of length n = 100
+Y <- B0 + B1*X + B2*X^2 + B3*X^3 + espi
+```
+   **(c)**
+```{r}
+#Create a data frame to hold to our dataset
+data <- data.frame(y=Y, x1=X, x2=X^2, x3=X^3, x4=X^4, x5=X^5, x6=X^6, x7=X^7, x8=X^8, x9=X^9, x10=X^10)
+#Run regsubsets to find the best model given our set of predictors
+fit <- regsubsets(y ~ ., data = data, nvmax=25, method="exhaustive")
+#show names of fit
+names(fit)
+#assign summary of fit to variable f.e
+f.e <- summary(fit)
+```
+
+```{r}
+#Graph Cp, bic and adj. R^2 graphs to see the minimum cp and bic to visually find the optimal number of predictors
+par(mfrow=c(3,1), mar=c(2.5,4,0.5,1), mgp=c(1.5,0.5,0)) #makes sure all plots are graphed in one output
+plot(f.e$cp, xlab="Number of predictors", ylab="cp", col="red", type="p", pch=16)
+plot(f.e$bic, xlab="Number of predictors", ylab="bic", col="blue", type="p", pch=16)
+plot(f.e$adjr2, xlab="Number of predictors", ylab="adjr2", col="green", type="p", pch=16)
+```
+   Based on these plots, it appears that the best model is obtained with 3 predictors.
+```{r}
+#Get the optimal number of predictors
+opt.size <- which.min(f.e$cp)
+opt.size
+```
+
+```{r}
+#Now that we know the optimal number of predictors, find which 3 predictors we should use
+fit.exh.var <- f.e$which
+#tells you which variables to include in model
+fit.exh.var[opt.size,]
+```
+
+```{r}
+#gives you column names of variables to include in the model
+colnames(fit.exh.var)[fit.exh.var[opt.size,]]
+```
+
+```{r}
+#Run a regression on those predictors
+fit.final <- lm(y ~ x1 + x2 + x3, data)
+#summary of the lm model above (fit.final)
+summary(fit.final)
+```
+Best model obtained with exhausted search: $Y = 1.00669 + 0.85557X + 0.95646X^2 + 0.95646X^3$
+ 
+  **(d)**
+Forward Selection:
+```{r}
+#Run regsubsets using forward selection instead of exhaustive
+fit.forward <- regsubsets(y ~., data = data, nvmax=25, method="forward")
+#get summary of fit.forward
+f.f <- summary(fit.forward)
+f.f
+```
+
+```{r}
+#Graph Cp, bic and adj. R^2 graphs to see the minimum cp and bic to visually find the optimal number of predictors
+par(mfrow=c(3,1), mar=c(2.5,4,0.5,1), mgp=c(1.5,0.5,0)) #makes sure all plots are graphed in one output
+plot(f.f$cp, xlab="Number of predictors", ylab="cp", col="red", type="p", pch=16)
+plot(f.f$bic, xlab="Number of predictors", ylab="bic", col="blue", type="p", pch=16)
+plot(f.f$adjr2, xlab="Number of predictors", ylab="adjr2", col="green", type="p", pch=16)
+```
+
+```{r}
+#Get the optimal number of predictors
+opt.size.f <- which.min(f.f$cp)
+opt.size.f
+```
+
+```{r}
+#get coefficients of those predicotrs
+coef(fit.forward, 3) 
+```
+
+```{r}
+#get summary of lm model for the three optimal predictors
+summary(lm(y ~ x1 + x2 + x3, data))
+```
+Best model obtained with forward search: $Y = 1.00669 + 0.85557X + 0.95646X^2 + 1.01384X^3$
+
+Backward Selection:
+```{r}
+#Run regsubsets using backward selection
+fit.backward <- regsubsets(y ~., data = data, nvmax=25, method="backward")
+#assign and get summary of backward selection
+f.b <- summary(fit.backward)
+f.b
+```
+
+```{r}
+#Graph Cp, bic and adj. R^2 graphs to see the minimum cp and bic to visually find the optimal number of predictors
+par(mfrow=c(3,1), mar=c(2.5,4,0.5,1), mgp=c(1.5,0.5,0)) #makes sure all plots are graphed in one output
+plot(f.b$cp, xlab="Number of predictors", ylab="cp", col="red", type="p", pch=16)
+plot(f.b$bic, xlab="Number of predictors", ylab="bic", col="blue", type="p", pch=16)
+plot(f.b$adjr2, xlab="Number of predictors", ylab="adjr2", col="green", type="p", pch=16)
+```
+```{r}
+#Get the optimal number of predictors
+opt.size.b <- which.min(f.b$cp)
+opt.size.b
+```
+
+
+```{r}
+#Fit the model with the predictors and run a regression
+#get coefficients for those predictors
+coef(fit.backward, 3)
+```
+
+```{r}
+#get summary of lm model with the three optimal predictors
+summary(lm(y ~ x1 + x4 + x5, data))
+```
+Best model obtained with backward search: $Y = 1.44524 + 1.94865X + 0.22524X^4 + 0.16940X^5$
+
+```{r}
+#Graphical comparison of all 3 methods using cp
+par(mfrow=c(3,1), mar=c(2.5,4,0.5,1), mgp=c(1.5,0.5,0)) #makes sure all plots are graphed in one output
+plot(f.f$cp,  col="red", type="p", pch=16, xlab="Forward Selection")
+plot(f.b$cp,  col="red", type="p", pch=16, xlab="Backward Selection")
+plot(f.e$cp,  col="blue", type="p", pch=16, xlab="All Subset Selection")
+```
+
+<center>
+|Model Type|Predictors|Equation|
+|--|--|--|
+|Exhaustive Search|$X_1, X_2, X_3$|$Y = 1.00669 + 0.85557X + 0.95646X^2 + 1.01384X^3$|
+|Forward Selection|$X_1, X_2, X_3$|$Y = 1.00669 + 0.85557X + 0.95646X^2 + 1.01384X^3$|
+|Backward Selection|$X_1, X_4, X_5$|$Y = 1.44524 + 1.94865X + 0.22524X^4 + 0.16940X^5$|
+</center>
+
+The models for exhaustive search and forward selection are pretty similar while the backward selection model gives us a model that uses different predictors.
+
+  **(e)**
+```{r}
+#Get data into matrix form
+X.lasso <- data.matrix(data[,-1])
+#fit Lasso model
+fit.cv <- cv.glmnet(X.lasso, Y, alpha=1, nfolds=10)
+#Plot the lambdas
+plot(fit.cv)
+```
+
+```{r}
+coef.min <- coef(fit.cv, s="lambda.1se")  
+coef.min <- coef.min[which(coef.min !=0),]   # get the non=zero coefficients
+coef.min  # the set of predictors chosen
+rownames(as.matrix(coef.min)) # shows only names, not estimates  
+```
+Best model obtained with Lasso and cross-validation: $Y = 1.0610942 + 0.8030554X + 0.9062722X^2 + 1.0127921X^3$
+The Lasso results are similar to our exhaustive search and forward selection models.
+
+   **(f)**
+Data set up:
+```{r}
+#set up y response variable
+Yf <- 1 + 7*X^7 + espi
+#create dataframe for model
+dataf <- data.frame(y=Yf, x1=X, x2=X^2, x3=X^3, x4=X^4, x5=X^5, x6=X^6, x7=X^7, x8=X^8, x9=X^9, x10=X^10)
+```
+
+Exhaustive Subset Selection
+```{r}
+#run exhaustive regsubset method on data
+fit2 <- regsubsets(y ~ ., data = dataf, nvmax=25, method="exhaustive")
+#get summary of exhasutive method
+f.f2 <- summary(fit2)
+```
+
+```{r}
+#Graph Cp, bic and adj. R^2 graphs to see the minimum cp and bic to visually find the optimal number of predictors
+par(mfrow=c(3,1), mar=c(2.5,4,0.5,1), mgp=c(1.5,0.5,0)) #makes sure all plots are graphed in one output 
+plot(f.f2$cp, xlab="Number of predictors", ylab="cp", col="red", type="p", pch=16)
+plot(f.f2$bic, xlab="Number of predictors", ylab="bic", col="blue", type="p", pch=16)
+plot(f.f2$adjr2, xlab="Number of predictors", ylab="adjr2", col="green", type="p", pch=16)
+```
+
+```{r}
+#Get the optimal number of predictors
+opt.size <- which.min(f.f2$cp)
+opt.size
+```
+
+```{r}
+#Now that we know the optimal number of predictors, find which predictors we should use
+fit.exh.var <- f.f2$which 
+fit.exh.var[opt.size,]
+```
+
+```{r}
+#gives you column names of variables to include in the model
+colnames(fit.exh.var)[fit.exh.var[opt.size,]]
+```
+
+```{r}
+#Run a regression on those predictors
+fit.f2.final <- lm(y ~ x7, dataf)
+#summary of the model above
+summary(fit.f2.final)
+```
+Lasso
+```{r}
+fit.cv2 <- cv.glmnet(X.lasso, Yf, alpha=1, nfolds=10)
+plot(fit.cv)   # plot the lambdas to have a visual representation of where lambda.min is
+coef.min <- coef(fit.cv2, s="lambda.min") 
+coef.min <- coef.min[which(coef.min !=0),]   # get the non=zero coefficients
+coef.min  # the set of predictors chosen
+```
+
+<center>
+|Model Type|Best-fit Equation|
+|--|--|
+|Exhaustive Search|$Y = 0.959887 + 6.998418X^7$|
+|Lasso|$Y = 1.650863 + 6.774520X^7$|
+</center>
+
+Both models are correct, but subset selection seems to be more accurate.
+
+
+## Problem 2: Regularization
+
+Crime data continuation:  We use a subset of the crime data discussed in class, but only look at Florida and California. `crimedata` is available on Canvas; we show the code to clean here. 
+
+```{r}
+crime.all <- read.csv("CrimeData.csv", stringsAsFactors = F, na.strings = c("?"))
+crime <- dplyr::filter(crime.all, state %in% c("FL", "CA"))
+```
+
+Our goal is to find the factors which relate to violent crime. This variable is included in crime as `crime$violentcrimes.perpop`.
+
+**A)** EDA
+
+* Clean the data first
+```{r, results = 'hide'}
+#View column names for the data
+names(crime)
+```
+
+```{r}
+#View dimensions of the data
+dim(crime)
+```
+
+```{r}
+#Find how many NA's are present in the data
+sum(is.na(crime)) #We can't simply take out all of the na's because there is 7204 of them!
+```
+
+```{r}
+#Find the dimensions of the data if we ommited all observations with an NA value
+dim(na.omit(crime)) #This would omit all of our observations!
+```
+
+```{r, results='hide'}
+#take subset of data the excludes police data and various crimes
+data1 <- crime[,c(2,6:103,121,122,123, 130:147)]
+data1.all <- crime.all[,c(2,6:103,121,122,123, 130:147)]
+names(data1)
+```
+
+* Prepare a set of sensible factors/variables that you may use to build a model
+
+```{r}
+names(data1[, 103:120]) #crime variables
+
+#continue to clean the data by taking these variables out
+var_names_out <- c("num.urban","other.percap", "num.underpov",
+                   "num.vacant.house","num.murders","num.rapes",
+                   "num.robberies", "num.assaults", "num.burglaries",
+                   "num.larcenies", "num.autothefts", "num.arsons")
+data1 <- data1[!(names(data1) %in% var_names_out)]
+data1.all <- data1.all[!(names(data1.all) %in% var_names_out)]
+
+names_other_crimes <- c( "murder.perpop", "rapes.perpop",                   
+                        "robberies.perpop",  "assaults.perpop",                
+                        "burglaries.perpop", "larcenies.perpop",               
+                        "autothefts.perpop", "arsons.perpop",                  
+                         "nonviolentcrimes.perpop")
+data2 <- data1[!(names(data1) %in% names_other_crimes)]
+data2.all <- data1.all[!(names(data1.all) %in% names_other_crimes)]
+
+```
+
+```{r}
+#further clean the data by ommiting rows with NA values
+crime.neat <- na.omit(data2) 
+crime.neat.all <- na.omit(data2.all)
+#get dimensions of cleaned data set
+dim(crime.neat)
+```
+
+* Show the heatmap with mean violent crime by state. You may also show a couple of your favorate summary statistics by state through the heatmaps.
+
+```{r}
+#Generating summary statistics like mean, median, standard deviation of violent crimes grouped by region.
+sum.violent <- crime.neat.all %>% group_by(state) %>% summarise(mean.crime = mean(violentcrimes.perpop), med.crime = median(violentcrimes.perpop), sd.crime = sd(violentcrimes.perpop))
+sum.violent
+```
+
+```{r}
+#Matching state abbreviations to full forms
+sum.violent$region <- tolower(state.name[match(sum.violent$state,state.abb)])
+sum.violent$center.lat <- state.center$x[match(sum.violent$state,state.abb)]
+sum.violent$center.long <- state.center$y[match(sum.violent$state, state.abb)]
+#sum.violent
+```
+
+```{r, warning= FALSE, message= FALSE}
+#Creating a dataframe to plot the summary statistics on the map
+states <- map_data("state")
+map <- merge(states,sum.violent, sort = FALSE, by="region", all.x=TRUE)
+#map
+```
+
+```{r}
+#Plot of mean violent crimes by region
+map <- map[order(map$order),]
+ggplot(map, aes(x=long, y=lat, group=group))+
+  geom_polygon(aes(fill=mean.crime))+
+  geom_path()+ 
+  geom_text(data=sum.violent, aes(x=center.lat, y=center.long, group=NA, 
+                             label=state, size=2), show.legend =FALSE)+
+  scale_fill_continuous(limits=c(0, 2000),name="Mean Violent Crime",
+                        low="light blue", high="dark blue")
+```
+
+```{r}
+#Plot of median viol;ent crimes by region
+ggplot(map, aes(x=long, y=lat, group=group))+
+  geom_polygon(aes(fill=med.crime))+
+  geom_path()+ 
+  geom_text(data=sum.violent, aes(x=center.lat, y=center.long, group=NA, 
+                             label=state, size=2), show.legend =FALSE)+
+  scale_fill_continuous(limits=c(0, 2000),name="Median Violent Crime",
+                        low="light blue", high="dark blue")
+```
+
+```{r}
+#Plot of standard deviation of violent crimes by region
+ggplot(map, aes(x=long, y=lat, group=group))+
+  geom_polygon(aes(fill=sd.crime))+
+  geom_path()+ 
+  geom_text(data=sum.violent, aes(x=center.lat, y=center.long, group=NA, 
+                             label=state, size=2), show.legend =FALSE)+
+  scale_fill_continuous(limits=c(0, 2000),name="Standard Deviation Violent Crime",
+                        low="light blue", high="dark blue")
+```
+
+* Write a brief summary based on your EDA
+
+We start with 147 columns and need to reduce this number in order to reduce the number of predictors we need to test and make our data easier to handle. However, upon inspecting the data, we see there are 7204 NA's in the data, and we simply cannot omit them because then we wind up with zero observations. After further inspection of the dataframe, we see that most of the NAs come from the police data so we can remove those. Additionally, we decided not to use other crimes as predictors since we wanted to focus on predicting violent crimes with other predictors and not bias our predictions with the prevelance of other crimes; so we removed those as well. Finally, we removed any other rows with NA values, which only reduced our number of observations by 1 (from 369 to 368). All in all, we reduced the number of columsn from 147 to 99 and only lost one observation. From the heat maps, we observed that violent crimes were more prevelant in Florida as compared to California. 
+
+
+**B)** Use LASSO to choose a reasonable, small model. Fit an OLS model with the variables obtained. The final model should only include variables with p-values < 0.05. Note: you may choose to use lambda 1se or lambda min to answer the following questions where apply. 
+
+```{r}
+#Extract Y
+Crime.Y <- crime.neat[, 99]
+#Get the X variables as a matrix. This will also code the categorical variables correctly.
+Crime.X <- model.matrix(violentcrimes.perpop~., data=crime.neat)[, -1]
+#get column names for the matrix
+#colnames(Crime.X)
+```
+
+```{r}
+set.seed(123)
+crime.model <- cv.glmnet(Crime.X,Crime.Y, alpha=1, nfolds = 10)   #Run Lasso model and plot lamdbas
+plot(crime.model)
+```
+
+```{r, results = 'hide'}
+#assign data to new dataframe
+crime.neat2 <- crime.neat
+#assign data from first column of Crime.X to first column of crime.neat2
+crime.neat2[,1] <- Crime.X[,1]
+#get column names for crime.neat2 data set
+names(crime.neat2)
+```
+
+```{r}
+#rename column state to stateFL
+crime.neat2 <- crime.neat2 %>% rename(stateFL = state)
+#get column names for crime.neat2
+names(crime.neat2)
+```
+
+```{r}
+crime.coef.min <- coef(crime.model, s="lambda.min")  
+crime.coef.min <- crime.coef.min[which(crime.coef.min !=0),]   # get the non=zero coefficients
+var.min <- rownames(as.matrix(crime.coef.min)) # output the names
+lm.input <- as.formula(paste("violentcrimes.perpop", "~", paste(var.min[-1], collapse = "+"))) # prepare for lm fomulae
+lm.input
+```
+We chose lambda min to fit the model because we wanted to choose the lambda that gave us the minimum prediction error. Moreover, lambda 1se shrunk the model to three freatures. This seemed like too simple a model and using it could underfit the data.
+
+
+```{r}
+fit.min.lm <- lm(lm.input, data=crime.neat2)
+lm.output <- coef(fit.min.lm) # output lm estimates
+summary(fit.min.lm)   #This is my OLS model
+```
+
+```{r}
+#Comparing the LASSO and OLS fit outputs
+crime.comp <- data.frame(crime.coef.min, lm.output )
+names(crime.comp) <- c("estimates from LASSO", "lm estimates")
+crime.comp
+```
+
+1. What is the model reported by LASSO? 
+   $violentcrimes.perpop = 1744.94992 + 6.02985*(race.pctblack) + -16.78601*(pct.kids2parents) + 73.15639*(pct.kids.nvrmarried)$
+
+
+2. What is the model after running OLS?
+   $violentcrimes.perpop = 2012.949 + 13.956*(race.pctblack) + -22.678*(pct.kids2parents) + 94.953*(pct.kids.nvrmarried)$
+
+3. What is your final model, after excluding high p-value variables? You will need to use model selection method to obtain this final model. Make it clear what criterion/criteria you have used and justify why they are appropriate. 
+
+Since all the variables are significant at the 0.05 level, the final model stays the same. 
+
+Our final model is the Lasso model: $violentcrimes.perpop = 1744.94992 + 6.02985*(race.pctblack) + -16.78601*(pct.kids2parents) + 73.15639*(pct.kids.nvrmarried)$
+
+
+**C)** Now, instead of Lasso, we want to consider how changing the value of alpha (i.e. mixing between Lasso and Ridge) will affect the model. Cross-validate between alpha and lambda, instead of just lambda. Note that the final model may have variables with p-values higher than 0.05; this is because we are optimizing for accuracy rather than parsimoniousness. 
+
+```{r, message= FALSE, warning= FALSE}
+set.seed(123)
+#vector of alphas
+a <- seq(0,1,.1)
+#vector to hold the minimum cv errors for each alpha
+min.cvm <- seq(0,1,.1)
+#vector to hold the minimum lambda for each alpha
+min.lambda <- seq(0,1,.1)
+#lam.seq <- crime.model$lambda
+MSE = NULL
+Lambda = NULL
+
+#Looping over alphas
+for ( i in 1:length(a)){
+  fit <- NULL
+  #ensure fits are all of same length of lambdas
+  while (length(fit$cvm) != 99) { 
+    fit <- cv.glmnet(Crime.X, Crime.Y, nfolds=10, alpha = a[i], nlambda = 100) 
+  }
+  MSE <- cbind(MSE,fit$cvm)
+  Lambda <- cbind(Lambda,fit$lambda)
+  min.cvm[i] <- fit$cvm[match(fit$lambda.min,fit$lambda)]
+  min.lambda[i] <-fit$lambda.min
+}
+#Dataframe of log lambdas for each alpha
+df.l <- data.frame(log(Lambda))
+#Dataframe of cv errors for each alpha
+df.e <- data.frame(MSE)
+colnames(df.l) <- paste0("alpha = ",seq(0,1,.1))
+colnames(df.e) <- paste0("alpha = ",seq(0,1,.1))
+
+df.l <- reshape2::melt(df.l)
+df.e <- reshape2::melt(df.e)
+
+df.tot <- cbind(df.l,df.e)
+colnames(df.tot) <- c("alpha","log.lambda","alpha.y","MSE")
+
+#Lambda corresponding to minimum cv error across alphas
+l <- min.lambda[match(min(min.cvm),min.cvm)]
+#Alpha for the lambda above
+alp <- a[match(min(min.cvm),min.cvm)]
+l.round <- round(l,2)
+
+ggplot(df.tot, aes(x = log.lambda , y = MSE, color = as.factor(alpha))) + geom_line() + theme_bw()  + geom_point( aes(x = log(l) , y = min(df.tot$MSE)) , color = "black" ) + geom_label(aes(x= log(l), y = min(df.tot$MSE) , label = paste0("alpha =",alp," lambda =",l.round)),family = "Courier" , color = "black", vjust = -4) + labs(title = "MSE By Lambda & Alpha Values")
+
+
+```
+
+1. What is your final elastic net model? What were the alpha and lambda values? What is the prediction error?
+```{r}
+#For the lambda and alpha that gave minimum cv error, fit an elastic net
+fit.lambda <- glmnet(Crime.X, Crime.Y, alpha = alp , lambda = l)
+
+coef.min <- coef(fit.lambda)
+coef.min <- coef.min[which(coef.min !=0),]# get the non=zero coefficients
+coef.min
+```
+
+The final elastic net model is shown above. Choosing the minimum MSE of the 10 curves gives us a final alpha value of `r alp` and a final lambda of `r l.round` with a Mean Square error of `r min(min.cvm)` which is an estimate of the prediction error.
+
+2. Use the elastic net variables in an OLS model. What is the equation, and what is the prediction error.
+```{r}
+#non zero coefficients from the elastic net
+coef.lm <- rownames(as.matrix(coef.min))
+lm.input <- as.formula(paste("violentcrimes.perpop","~",paste(coef.lm[-1],collapse = "+")))
+data.ols <- data.frame(Crime.X,violentcrimes.perpop=Crime.Y)
+
+fit.ols <- lm(lm.input,data = data.ols)
+summary(fit.ols)
+
+#Prediction error based on Mallows Cp
+
+pred.err <- (1/368)*(335.9^2*(368-39) + 2*38*335.9^2)
+
+
+```
+The model is shown above. The prediction error is `r pred.err`
+
+3. Summarize your findings, with particular focus on the difference between the two equations.
+
+The coefficients for the variables in the OLS model using the elastic net variables in part 2 is bigger than the coefficients for the variables in the elastic net model in part 1. This is due to that fact that in the elastic net model, the coefficients are shrunk towards zero to prevent the model from overfitting. However, doing an OLS model with the same variables found in the elastic net model may adjust the bias due to the shrinkage in the elastic net model. For our dataset, the prediction error of the OLS model is smaller than the original elastic net.
+
+**B+)** Repeat similar stepts as that of **B)** but start with the set of variables that also include all two way interactions
+
+1. How many variables do you have now?
+
+```{r, results = 'hide'}
+#Extracting response variable into Y
+Y <- crime.neat2$violentcrimes.perpop
+#Defining a function to include pairwise interactions
+f <- as.formula(violentcrimes.perpop~.*.)   
+#Setting up the design matrix
+X <- model.matrix(f, data = crime.neat2)[,-1]
+#colnames(X)
+```
+
+```{r}
+#Dataframe combining design matrix and response vector used for plotting
+data.new <- data.frame(X,violentcrimes.perpop= Y)
+#LASSO with Cross validation on teh new data
+set.seed(123)
+fit.lass.cv <- cv.glmnet(X,Y,alpha = 1, nfolds = 10)
+fit.lass.cv$lambda.min
+```
+
+```{r}
+par(mfrow=c(3,1), mar=c(2.5,4,1.5,1), mgp=c(1.5,0.5,0))
+#Plot to look at variation of error with lambda 
+plot(fit.lass.cv$lambda,fit.lass.cv$cvm, xlab = "Lambda", ylab = "CVM")
+#Plot to look at variation of number of non zero parameters with lambda
+plot(fit.lass.cv$lambda, fit.lass.cv$nzero, xlab="Lambda", ylab="Number of Non-Zeros")
+plot(fit.lass.cv)
+```
+
+```{r}
+#Extracting the coefficients corresponding to minimum lambda to feed into ols model
+coef.min <- coef(fit.lass.cv, s="lambda.min") 
+coef.min <- coef.min[which(coef.min !=0),]
+var.min <- rownames(as.matrix(coef.min)) 
+lm.input <- as.formula(paste("violentcrimes.perpop", "~", paste(var.min[-1], collapse = "+")))
+lm.input
+```
+
+```{r}
+#OLS model using parameters output by LASSO
+fit.min.lass <- lm(lm.input, data = data.new)
+lm.output <- coef(fit.min.lass)
+summary(fit.min.lass)
+```
+
+```{r}
+#Model selection using regsubsets to find the best combination of the parameters
+fit.final <- regsubsets(violentcrimes.perpop~race.pctblack.age.pct16to24        +       race.pctblack.hisp.percap    +   race.pctblack.pct.no.english.well + race.pctblack.rent.qrange +  pct.pubasst.inc.pct.use.publictransit      +       white.percap.pct.not.hsgrad       +    asian.percap.pct.pop.underpov+ hisp.percap.pct.pop.underpov     +         hisp.percap.pct.not.hsgrad     +      hisp.percap.pct.house.nophone     +    pct.not.hsgrad.male.pct.divorce + male.pct.divorce.pct.kids.nvrmarried      +      pct.kids2parents.pct.workmom    +    pct.kids2parents.pct.house.occup   +  pct.kids2parents.med.yr.house.built +  pct.house.vacant.pct.house.nophone    +    pct.house.vacant.num.in.shelters +  pct.house.nophone.pct.use.publictransit , nvmax=19, method="exhau", data = data.new  )
+
+finalmodel <- function(data.fl, fit.final) # fit.final is an object form regsubsets
+{
+  
+  # Input: the data frame and the regsubsets output= fit.final
+  # Output: the final model variable names
+  p <- fit.final$np-1  #  number of  predictors from fit.final
+  var.names <- c(names(data.fl)[dim(data.fl)[2]], names(coef(fit.final, p))[-1]) # collect all predictors and y
+  data1 <- data.fl[, var.names]  # a subset
+  temp.input <- as.formula(paste(names(data1)[1], "~",
+                   paste(names(data1)[-1], collapse = "+"),
+                   sep = ""))      # get lm() formula
+  
+  try.1 <- lm(temp.input, data=data1)  # fit the current model
+  largestp <- max(coef(summary(try.1))[2:p+1, 4]) # largest p-values of all the predictors
+ 
+   while(largestp > .05)   #stop if all the predictors are sig at .05 level
+  
+     {p=p-1  # otherwise move to the next smaller model
+  
+      var.names <- c(names(data.fl)[dim(data.fl)[2]], names(coef(fit.final, p))[-1])
+      data1 <- data.fl[, var.names]
+  
+      temp.input <- as.formula(paste(names(data1)[1], "~",
+                              paste(names(data1)[-1], collapse = "+"),
+                              sep = ""))      # get lm() formula
+  
+      try.1 <- lm(temp.input, data=data1)  # fit the current model
+      largestp <- max(coef(summary(try.1))[2:p+1, 4]) # largest p-values of all the predictors
+      }
+  
+  finalmodel <- var.names
+  finalmodel
+}
+
+#Vector of variable names that is the best model
+names <- finalmodel(data.new, fit.final ) 
+
+lm.input <- as.formula(paste(names[1], "~", paste(names[-1], collapse = "+")))
+summary(lm(lm.input, data = data.new))
+```
+
+We have 8 features in the final model for the case that includes pair wise interaction terms.
+
+2. Comparing the final models with the ones from **B)**, which one would you use? Commenting on your choice.
+
+We would want to use the final model we get from part B since it has many fewer variables than our final answer for part B+, which makes interpretations easier. Both the final model from part B and part B+ have predictors that are all significant, but the predictors in the final model from part B are all more significant than some of the predictors in the final model from part B+, which is another reason we would choose the final model in part B. Also, teh model from part B+ is more complex, which might result in overfitting the data.
